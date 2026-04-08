@@ -1,26 +1,52 @@
 services:
   qdrant:
     image: qdrant/qdrant
+    restart: always
     ports:
       - "6333:6333"
+    volumes:
+      - qdrant_storage:/qdrant/storage
+    env_file:
+      - .env
     networks:
       - app-network
 
   app:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: fastapi-app
+    restart: unless-stopped
     ports:
       - "8000:8000"
     depends_on:
       - qdrant
-    env_file: .env
+    env_file:
+      - .env
     networks:
       - app-network
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    volumes:
+      - ./docs:/app/docs
+      - ./logs:/app/logs
 
 networks:
   app-network:
     driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
 
 volumes:
   qdrant_storage:
+    name: qdrant_storage
+    driver: local
