@@ -1,12 +1,12 @@
 import asyncio
-from fastapi import FastAPI
+
+from celery.result import AsyncResult
+from fastapi import FastAPI, BackgroundTasks
 from contextlib import asynccontextmanager
 
 from app.logger import logger
-from app.storage import save_document
 from app.health import check_all_services
-from app.agents import generate_and_validate_documentation
-from app.rag import initialize_rag_from_docs, search_documentation
+
 from app.rag import initialize_rag_from_docs, search_documentation
 from app.schemas import (
     SearchRequest,
@@ -14,6 +14,9 @@ from app.schemas import (
     GenerateRequest,
     GenerateResponse
 )
+from app.celery_app import celery_app
+from app.tasks import generate_documentation_task, check_task_status
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -30,7 +33,7 @@ app = FastAPI(title="AI Docs Assistant", lifespan=lifespan)
 
 
 @app.post('/search', response_model=SearchResponse)
-def search_docs(request: SearchRequest):
+async def search_docs(request: SearchRequest):
     """
     Выполняет семантический поиск в базе документации.
     """
@@ -47,52 +50,57 @@ def search_docs(request: SearchRequest):
 
 
 @app.post('/generate', response_model=GenerateResponse)
-def generate_docs(request: GenerateRequest):
+async def generate_docs(
+    request: GenerateRequest, background_tasks: BackgroundTasks
+):
     """
-    Генерирует новую документацию и сохраняет её в docs/.
+    Генерирует документацию асинхронно - ответ приходит сразу,
+    а генерация идет в фоне.
     """
-    # 1. Проверяем, не существует ли уже документ
-    if search_documentation(request.query, similarity_threshold=0.75):
+    # Быстрая проверка существования
+    existing = search_documentation(request.query, similarity_threshold=0.75)
+
+    if existing:
         return GenerateResponse(
             success=False,
             message='Документ уже существует. Используйте /search.'
         )
 
-    try:
-        # 2. Генерация через агента
-        content = generate_and_validate_documentation(request.query)
+    task = generate_documentation_task.delay(request.query)
 
-        # 3. Базовая валидация: должен содержать заголовок
-        if not content.strip().startswith('###'):
-            logger.error(
-                f'Сгенерированный документ не соответствует '
-                f'формату для запроса: {request.query}'
-            )
-            return GenerateResponse(
-                success=False,
-                message='Ошибка генерации: неверный формат документа.'
-            )
+    return GenerateResponse(
+        success=True,
+        message=f'Задача на генерацию запущена. Task ID: {task.id}',
+        content=None,
+        file_path=None,
+        task_id=task.id
+    )
 
-        # 4. Сохранение
-        file_path = save_document(content, request.query)
 
-        # 5. Обновить RAG
-        # TODO и подумать сделать это в отдельном процессе или потоке
-        initialize_rag_from_docs()
+@app.get('/task/{task_id}')
+async def get_task_status(task_id: str):
+    """
+    Получение статуса задачи по ID
+    """
+    return await asyncio.to_thread(check_task_status, task_id)
 
-        return GenerateResponse(
-            success=True,
-            message='Документ успешно создан и сохранён.',
-            content=content,
-            file_path=file_path
-        )
 
-    except Exception as e:
-        logger.error(f'Ошибка генерации документа: {e}', exc_info=True)
-        return GenerateResponse(
-            success=False,
-            message=f'Ошибка генерации: {str(e)}'
-        )
+@app.delete('/task/{task_id}')
+async def abort_task(task_id: str):
+    """
+    Отмена выполнения задачи
+    """
+    task = AsyncResult(task_id, app=celery_app)
+
+    if task.state in ["PENDING", "STARTED"]:
+        task.revoke(terminate=True)
+        return {"status": "aborted", "task_id": task_id}
+
+    return {
+        "status": "task_not_running",
+        "task_id": task_id,
+        "current_state": task.state
+    }
 
 
 @app.get('/health')
