@@ -172,3 +172,9 @@ cython_debug/
 .pypirc
 finance-db
 .idea/
+node_modules/
+dist/
+.DS_Store
+*.log
+.env
+.env.local
