@@ -3,8 +3,9 @@
         <h2>📋 Активные задачи</h2>
         <div class="auto-refresh">
             <label>
-                <input type="checkbox" v-model="tasksStore.autoRefresh" @change="toggleAutoRefresh">
+                <input type="checkbox" :checked="tasksStore.autoRefresh" @change="toggleAutoRefresh">
                 Автообновление (каждые 3 сек)
+                <span v-if="tasksStore.autoRefresh" class="pulse">●</span>
             </label>
             <button class="btn btn-secondary" @click="refreshTasks" style="margin-left: auto;">
                 🔄 Обновить
