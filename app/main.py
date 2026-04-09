@@ -2,6 +2,7 @@ import asyncio
 
 from celery.result import AsyncResult
 from fastapi import FastAPI, BackgroundTasks
+from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 
 from app.logger import logger
@@ -30,6 +31,19 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="AI Docs Assistant", lifespan=lifespan)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:5173",  # Vite dev server
+        "http://localhost:8080",   # Nginx
+        "http://127.0.0.1:5173",
+        "http://127.0.0.1:8080",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],  # Разрешить все методы (GET, POST, DELETE и т.д.)
+    allow_headers=["*"],  # Разрешить все заголовки
+)
 
 
 @app.post('/search', response_model=SearchResponse)

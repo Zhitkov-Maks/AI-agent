@@ -2,7 +2,6 @@ from pathlib import Path
 import asyncio
 
 from langchain_core.documents import Document
-from flashrank import Ranker, RerankRequest
 from langchain_ollama import OllamaEmbeddings
 from langchain_qdrant import QdrantVectorStore
 from qdrant_client import QdrantClient
@@ -20,7 +19,6 @@ vector_size = settings.VECTOR_SIZE
 
 # Инициализация клиента Qdrant и создание коллекции
 client = QdrantClient(settings.QDRANT_HOST, port=settings.QDRANT_PORT)
-ranker = Ranker()
 
 if client.collection_exists(collection_name):
     client.delete_collection(collection_name)
@@ -76,48 +74,30 @@ def initialize_rag_from_docs() -> None:
 
 def search_documentation(
     query: str,
-    retrieval_k: int = 10,
-    k: int = 3,
+    k: int = 1,
     similarity_threshold: float = 0.62
 ) -> str | None:
     """Выполняет семантический поиск по документации API."""
     try:
-        logger.info(f"Семантический поиск: {query!r}")
-        docs_with_scores = vector_store.similarity_search_with_score(
-            query, k=retrieval_k, score_threshold=similarity_threshold
+        logger.info(f'Семантический поиск: {query!r}')
+        results = vector_store.similarity_search_with_score(
+            query, k=k, score_threshold=similarity_threshold
         )
 
-        if not docs_with_scores:
-            logger.info(f"Документы не найдены для {query!r}")
-            return None
-
-        # 2. Конвертируем в формат, понятный FlashRank
-        passages = []
-        for doc, _ in docs_with_scores:
-            passages.append({
-                "id": doc.metadata.get("source", str(id(doc))),
-                "text": doc.page_content,
-                "meta": {"source": doc.metadata.get("source", "unknown")}
-            })
-
-        reranked_results = ranker.rerank(
-            RerankRequest(query=query, passages=passages)
-        )
-
-        if reranked_results:
-            doc = reranked_results[0]
+        if results:
+            doc, score = results[0]
             logger.info(
-                f"Найден релевантный документ ({doc['meta']['source']}) "
-                f"(score={doc['score']:.3f}) для {query!r}"
+                f'Найден релевантный документ ({doc.metadata["source"]}) '
+                f'(score={score:.3f}) для {query!r}'
             )
-            return doc["text"]
+            return doc.page_content
 
-        logger.info(f"Релевантные документы не найдены для {query!r}")
+        logger.info(f'Релевантные документы не найдены для {query!r}')
         return None
 
     except Exception as exc:
         logger.error(
-            f"Ошибка при выполнении RAG-поиска для {query!r}: {exc}",
+            f'Ошибка при выполнении RAG-поиска для {query!r}: {exc}',
             exc_info=True
         )
         return None
