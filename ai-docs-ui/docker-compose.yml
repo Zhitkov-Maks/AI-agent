@@ -1,0 +1,14 @@
+services:
+  nginx:
+    build: .
+    ports:
+      - "8080:80"
+    environment:
+      - BACKEND_URL=http://backend:8000
+    networks:
+      - ai-docs-network
+
+networks:
+  ai-docs-network:
+    external: true
+    name: ai-docs-network
