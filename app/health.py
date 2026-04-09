@@ -40,7 +40,7 @@ def run_rag_canary_check() -> bool:
     Возвращает True, если система отвечает ожидаемо.
     """
     query = "Эндпоинт для получения профиля"
-    result = search_documentation(query, similarity_threshold=0.6)
+    result = search_documentation(query, similarity_threshold=0.65)
     if not result:
         return False
     return "GET /api/v1/profile" in result
