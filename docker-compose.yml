@@ -1,34 +1,143 @@
+networks:
+  app-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+    internal: false
+
+  data-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.21.0.0/16
+    internal: true
+  
+  monitoring-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.22.0.0/16
+    internal: false
+
+volumes:
+  qdrant_storage:
+    name: qdrant_storage
+    driver: local
+  redis_data:
+    name: redis_data
+    driver: local
+  celery_logs:
+    name: celery_logs
+    driver: local
+  flower_data:
+    name: flower_data
+    driver: local
+
 services:
+  # ==================== QDRANT (Vector Database) ====================
   qdrant:
-    image: qdrant/qdrant
-    restart: always
-    ports:
-      - "6333:6333"
+    image: qdrant/qdrant:latest
+    container_name: qdrant
+    restart: unless-stopped
     volumes:
       - qdrant_storage:/qdrant/storage
+    environment:
+      - QDRANT__SERVICE__HTTP_PORT=6333
+      - QDRANT__SERVICE__API_KEY=${QDRANT_API_KEY:-}  # Добавляем API key
+      - QDRANT__LOG_LEVEL=INFO
+    networks:
+      - data-network
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=100M
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:6333/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ==================== REDIS (Broker for Celery) ====================
+  redis:
+    image: redis:7-alpine
+    container_name: redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD} --maxmemory 512mb --maxmemory-policy allkeys-lru --protected-mode yes
+    volumes:
+      - redis_data:/data
     env_file:
       - .env
     networks:
-      - app-network
+      - data-network
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 10s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
+  # ==================== BACKEND API (FastAPI) ====================
   app:
     build:
-      context: .
+      context: ./app
       dockerfile: Dockerfile
     container_name: fastapi-app
     restart: unless-stopped
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     depends_on:
-      - qdrant
+      qdrant:
+        condition: service_started
+      redis:
+        condition: service_healthy
     env_file:
       - .env
+    environment:
+      - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379/0
+      - CELERY_BROKER_URL=redis://:${REDIS_PASSWORD}@redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://:${REDIS_PASSWORD}@redis:6379/1
+      - QDRANT_HOST=qdrant
+      - QDRANT_PORT=6333
+      - QDRANT_API_KEY=${QDRANT_API_KEY}
+      - SECRET_KEY=${SECRET_KEY}
+      - ENVIRONMENT=production
     networks:
       - app-network
+      - data-network
     extra_hosts:
       - "host.docker.internal:host-gateway"
     security_opt:
       - no-new-privileges:true
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 256M
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
@@ -36,17 +145,139 @@ services:
       retries: 3
       start_period: 40s
     volumes:
-      - ./docs:/app/docs
+      - ./docs:/app/docs:ro
       - ./logs:/app/logs
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
-networks:
-  app-network:
-    driver: bridge
-    ipam:
-      config:
-        - subnet: 172.20.0.0/16
+  # ==================== CELERY WORKER ====================
+  celery:
+    build:
+      context: ./app
+      dockerfile: Dockerfile
+    container_name: celery-worker
+    restart: unless-stopped
+    command: celery -A celery_app.celery worker --loglevel=info --concurrency=4 --max-tasks-per-child=100 -E
+    depends_on:
+      redis:
+        condition: service_healthy
+      qdrant:
+        condition: service_started
+    env_file:
+      - .env
+    environment:
+      - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379/0
+      - CELERY_BROKER_URL=redis://:${REDIS_PASSWORD}@redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://:${REDIS_PASSWORD}@redis:6379/1
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - QDRANT_HOST=qdrant
+      - QDRANT_PORT=6333
+      - QDRANT_API_KEY=${QDRANT_API_KEY}
+      - QDRANT_COLLECTION_NAME=api_docs
+      - OLLAMA_HOST=host.docker.internal
+      - OLLAMA_PORT=11434
+    networks:
+      - data-network
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    security_opt:
+      - no-new-privileges:true
+    deploy:
+      resources:
+        limits:
+          cpus: '4'
+          memory: 4G
+        reservations:
+          cpus: '1'
+          memory: 1G
+    volumes:
+      - ./docs:/app/docs:ro
+      - ./logs:/app/logs
+      - ./uploads:/app/uploads
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
-volumes:
-  qdrant_storage:
-    name: qdrant_storage
-    driver: local
+  # ==================== FLOWER (Celery Monitoring) ====================
+  flower:
+    image: mher/flower:latest
+    container_name: flower
+    restart: unless-stopped
+    command: >
+      celery --broker=redis://:${REDIS_PASSWORD}@redis:6379/0 flower
+      --port=5555
+      --basic_auth=${FLOWER_USER}:${FLOWER_PASSWORD}
+      --url_prefix=flower
+      --persistent=True
+      --db=/data/flower.db
+      --max-tasks=10000
+    ports:
+      - "5555:5555"
+    depends_on:
+      redis:
+        condition: service_healthy
+      celery:
+        condition: service_started
+    environment:
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+      - CELERY_BROKER_URL=redis://:${REDIS_PASSWORD}@redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://:${REDIS_PASSWORD}@redis:6379/1
+    volumes:
+      - flower_data:/data
+    networks:
+      - monitoring-network
+      - data-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5555"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ==================== FRONTEND (Vue.js) ====================
+  ai-docs-ui:
+    build:
+      context: ./ai-docs-ui
+      dockerfile: Dockerfile
+    container_name: ai-docs-ui
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      app:
+        condition: service_healthy
+    networks:
+      - app-network
+    # Добавляем ограничения ресурсов
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+        reservations:
+          cpus: '0.1'
+          memory: 128M
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"

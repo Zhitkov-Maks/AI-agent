@@ -1,29 +1,43 @@
-# Stage 1: Build
-FROM node:18-alpine as build-stage
+# frontend/Dockerfile
+
+# Stage 1: Build - используем Node.js 22
+FROM node:22-alpine as build-stage
 
 WORKDIR /app
 
-# Copy package files
+# Копируем package files
 COPY package*.json ./
-RUN npm ci
 
-# Copy source code
+# Устанавливаем зависимости
+RUN npm install --legacy-peer-deps
+
+# Копируем исходники
 COPY . .
 
-# Build the app
+# Собираем приложение
 RUN npm run build
 
 # Stage 2: Production
-FROM nginx:alpine
+FROM nginx:stable-alpine
 
-# Copy built assets from build stage
+# Установка curl для healthcheck
+RUN apk add --no-cache curl
+
+# Копируем собранные ассеты
 COPY --from=build-stage /app/dist /usr/share/nginx/html
 
-# Copy nginx configuration
+# Копируем конфигурацию nginx (ДОБАВЬТЕ ЭТУ СТРОКУ!)
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 
-# Expose port 80
+# Создаём простой healthcheck файл
+RUN echo "healthy" > /usr/share/nginx/html/health
+
+# Expose порт
 EXPOSE 80
 
-# Start nginx
+# Healthcheck
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost/ || exit 1
+
+# Запуск nginx
 CMD ["nginx", "-g", "daemon off;"]
