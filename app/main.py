@@ -5,18 +5,18 @@ from fastapi import FastAPI, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 
-from app.logger import logger
-from app.health import check_all_services
+from mylogger import logger
+from health import check_all_services
 
-from app.rag import initialize_rag_from_docs, search_documentation
-from app.schemas import (
+from rag import initialize_rag_from_docs, search_documentation
+from schemas import (
     SearchRequest,
     SearchResponse,
     GenerateRequest,
     GenerateResponse
 )
-from app.celery_app import celery_app
-from app.tasks import generate_documentation_task, check_task_status
+from celery_app import celery_app
+from tasks import generate_documentation_task, check_task_status
 
 
 @asynccontextmanager
@@ -34,15 +34,10 @@ app = FastAPI(title="AI Docs Assistant", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "http://localhost:8080",
-        "http://127.0.0.1:5173",
-        "http://127.0.0.1:8080",
-    ],
+    allow_origins=["*"],
     allow_credentials=True,
-    allow_methods=["*"],  # Разрешить все методы (GET, POST, DELETE и т.д.)
-    allow_headers=["*"],  # Разрешить все заголовки
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 

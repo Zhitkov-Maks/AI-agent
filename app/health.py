@@ -1,17 +1,24 @@
 from pathlib import Path
+import os
 
 import httpx
 
-from app.logger import logger
-from app.settings import settings
-from app.rag import search_documentation
+from mylogger import logger
+from settings import settings
+from rag import search_documentation
+
+
+QDRANT_API_KEY = os.getenv("QDRANT_API_KEY", None)
 
 
 async def check_qdrant():
     """Проверяет доступность Qdrant через REST API."""
     try:
         async with httpx.AsyncClient(timeout=3.0) as client:
-            resp = await client.get(f'{settings.qdrant_url}/collections')
+            resp = await client.get(
+                f'{settings.qdrant_url}/collections',
+                headers={'api-key': QDRANT_API_KEY}
+            )
             return resp.status_code == 200
     except Exception as e:
         logger.error(f'Qdrant недоступен: {e}')

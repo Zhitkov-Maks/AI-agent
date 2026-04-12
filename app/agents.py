@@ -1,7 +1,7 @@
 from crewai import Agent, Task, Crew, LLM
 
-from app.logger import logger
-from app.settings import settings
+from mylogger import logger
+from settings import settings
 
 # Инициализация LLM (общая для всех агентов)
 llm = LLM(

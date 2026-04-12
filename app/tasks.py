@@ -4,11 +4,11 @@ from typing import Dict, Any
 from celery import Task
 from celery.result import AsyncResult
 
-from app.logger import logger
-from app.celery_app import celery_app
-from app.agents import generate_and_validate_documentation
-from app.storage import save_document
-from app.rag import add_document, search_documentation
+from mylogger import logger
+from celery_app import celery_app
+from agents import generate_and_validate_documentation
+from storage import save_document
+from rag import add_document, search_documentation
 
 
 class DocumentGenerationTask(Task):

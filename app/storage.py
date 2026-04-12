@@ -1,7 +1,7 @@
 import re
 from pathlib import Path
 
-from app.logger import logger
+from mylogger import logger
 
 
 DOCS_DIR = Path('docs')
