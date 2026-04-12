@@ -1,6 +1,6 @@
 import os
 from celery import Celery
-from app.logger import logger
+from mylogger import logger
 
 # Настройки подключения к Redis
 REDIS_HOST = os.getenv("REDIS_HOST", "localhost")
@@ -17,7 +17,7 @@ celery_app = Celery(
     "documentation_generator",
     broker=BROKER_URL,
     backend=RESULT_BACKEND,
-    include=["app.tasks"]  # Автоматическое обнаружение задач
+    include=["tasks"]  # Автоматическое обнаружение задач
 )
 
 # Конфигурация Celery
@@ -63,3 +63,6 @@ celery_app.conf.broker_transport_options = {
 }
 
 logger.info(f"Celery приложение инициализировано с брокером: {BROKER_URL}")
+
+# Алиас для совместимости с командой celery -A celery_app.celery
+celery = celery_app
