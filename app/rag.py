@@ -59,18 +59,17 @@ def init_vector_store():
 
 def ensure_collection_exists():
     """Проверяет существование коллекции и создает если нужно."""
-    if not client.collection_exists(collection_name):
-        client.create_collection(
+    if client.collection_exists(collection_name):
+        logger.info(f"📁 Коллекция {collection_name} уже существует")
+        client.delete_collection(collection_name=collection_name)
+    client.create_collection(
             collection_name=collection_name,
             vectors_config=VectorParams(
-                size=vector_size, distance=Distance.COSINE
+                size=vector_size,
+                distance=Distance.COSINE
             ),
         )
-        logger.info(f"✅ Коллекция {collection_name} создана")
-        return False
-    else:
-        logger.info(f"📁 Коллекция {collection_name} уже существует")
-        return True
+    return True
 
 
 def initialize_rag_from_docs() -> None:
