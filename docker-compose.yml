@@ -11,8 +11,8 @@ networks:
     ipam:
       config:
         - subnet: 172.21.0.0/16
-    internal: true
-  
+    internal: false
+
   monitoring-network:
     driver: bridge
     ipam:
@@ -146,7 +146,7 @@ services:
       start_period: 40s
     volumes:
       - ./docs:/app/docs:ro
-      - ./logs:/app/logs
+      - ./logs:/app/logs:rw
     logging:
       driver: "json-file"
       options:
@@ -195,8 +195,8 @@ services:
           cpus: '1'
           memory: 1G
     volumes:
-      - ./docs:/app/docs:ro
-      - ./logs:/app/logs
+      - ./docs:/app/docs:rw
+      - ./logs:/app/logs:rw
       - ./uploads:/app/uploads
     logging:
       driver: "json-file"
