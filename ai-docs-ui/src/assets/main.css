@@ -382,3 +382,133 @@ body {
 .modal-close:hover {
     color: #4a5568;
 }
+
+.markdown-content {
+    margin-top: 8px;
+    font-size: 14px;
+}
+
+.api-endpoint {
+    margin-bottom: 20px;
+    padding: 12px;
+    background: #fafafa;
+    border-radius: 6px;
+    border-left: 3px solid #007bff;
+}
+
+.api-endpoint:last-child {
+    margin-bottom: 0;
+}
+
+.endpoint-title {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 8px;
+    font-family: 'Courier New', monospace;
+}
+
+.http-method {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: bold;
+    min-width: 60px;
+    text-align: center;
+}
+
+.method-get { background: #61affe; color: white; }
+.method-post { background: #49cc90; color: white; }
+.method-put { background: #fca130; color: white; }
+.method-delete { background: #f93e3e; color: white; }
+.method-patch { background: #50e3c2; color: white; }
+.method-default { background: #9012fe; color: white; }
+
+.endpoint-path {
+    font-size: 14px;
+    font-weight: 600;
+    color: #333;
+}
+
+.endpoint-description {
+    margin-bottom: 8px;
+    color: #555;
+    line-height: 1.4;
+}
+
+.endpoint-params {
+    margin-bottom: 8px;
+    color: #555;
+    line-height: 1.5;
+}
+
+.endpoint-params strong {
+    color: #333;
+    margin-right: 6px;
+}
+
+.endpoint-params ul {
+    margin: 4px 0 0 0;
+    padding-left: 20px;
+    list-style-type: disc;
+}
+
+.endpoint-params li {
+    margin: 2px 0;
+}
+
+.endpoint-params code {
+    background: #e9ecef;
+    padding: 2px 5px;
+    border-radius: 3px;
+    font-family: 'Courier New', monospace;
+    font-size: 13px;
+    color: #d14;
+}
+
+.param-type {
+    color: #6c757d;
+    font-size: 12px;
+    font-style: italic;
+}
+
+.endpoint-response {
+    margin-top: 8px;
+}
+
+.endpoint-response strong {
+    color: #333;
+    display: block;
+    margin-bottom: 5px;
+}
+
+.json-response {
+    background: #f4f4f4;
+    padding: 10px;
+    border-radius: 4px;
+    overflow-x: auto;
+    margin: 5px 0 0 0;
+    border: 1px solid #e0e0e0;
+}
+
+.json-response code {
+    background: transparent;
+    padding: 0;
+    color: #333;
+    font-family: 'Courier New', monospace;
+    font-size: 13px;
+    line-height: 1.4;
+}
+
+.markdown-content pre {
+    margin: 5px 0;
+}
+
+.markdown-content code {
+    background: #e9ecef;
+    padding: 2px 5px;
+    border-radius: 3px;
+    font-family: 'Courier New', monospace;
+    font-size: 13px;
+}
